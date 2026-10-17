@@ -1,0 +1,190 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Ludo 3D — Board Test</title>
+<style>
+  html, body { margin: 0; padding: 0; background: #1c1410; color: #ffe9c4;
+    font-family: system-ui, -apple-system, sans-serif; }
+  #board { width: 100vw; height: 68vh; touch-action: manipulation; }
+  #panel { padding: 12px 16px 24px; }
+  #panel h1 { font-size: 18px; margin: 0 0 10px; }
+  #panel .row { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 10px; }
+  button {
+    background: #7a2e1d; color: #ffe9c4; border: 1px solid #d4a017;
+    border-radius: 10px; padding: 10px 14px; font-size: 14px; cursor: pointer;
+  }
+  button:active { transform: scale(0.97); }
+  #log {
+    background: #120c08; border: 1px solid #5a3a22; border-radius: 10px;
+    padding: 10px 12px; min-height: 120px; max-height: 220px; overflow-y: auto;
+    font-family: monospace; font-size: 12.5px; white-space: pre-wrap;
+  }
+  #log .evt { color: #ffd968; }
+  #log .ok { color: #9ccc65; }
+</style>
+<script type="importmap">
+{
+  "imports": {
+    "three": "https://unpkg.com/three@0.160.0/build/three.module.js",
+    "three/addons/": "https://unpkg.com/three@0.160.0/examples/jsm/"
+  }
+}
+</script>
+</head>
+<body>
+<div id="board"></div>
+<div id="panel">
+  <h1>🎲 LudoBoard 3D — visual test</h1>
+  <div class="row">
+    <button id="b-init">1. Init + 4P mid-game</button>
+    <button id="b-roll">2. Simulate dice roll (5)</button>
+    <button id="b-hl">3. Highlight movable [1,3]</button>
+    <button id="b-move">4. Move token 0 (+6 cells)</button>
+    <button id="b-capture">5. Capture demo</button>
+    <button id="b-myturn">6. My turn again (red)</button>
+    <button id="b-winner">7. Show winner (yellow)</button>
+    <button id="b-reset">8. Reset fresh game</button>
+  </div>
+  <div id="log"></div>
+  <p style="font-size:12px;opacity:.7">Serve over http (e.g. <code>python3 -m http.server</code> in
+  <code>client/</code>) — ES modules + CDN importmap don't work from <code>file://</code>.
+  Tap the 3D dice / glowing tokens to test interaction callbacks.</p>
+</div>
+
+<script type="module">
+import './js/board3d.js';
+
+const B = window.LudoBoard;
+const logEl = document.getElementById('log');
+const log = (msg, cls) => {
+  const d = document.createElement('div');
+  if (cls) d.className = cls;
+  d.textContent = `[${new Date().toLocaleTimeString()}] ${msg}`;
+  logEl.appendChild(d);
+  logEl.scrollTop = logEl.scrollHeight;
+};
+const clone = o => JSON.parse(JSON.stringify(o));
+
+let cur = null;          // current pubState mirror
+const MY = 'red';
+let initialized = false;
+
+function freshState() {
+  return {
+    roomId: 'test-room', mode: '4P', entry: 100,
+    players: [
+      { id: 'p1', name: 'Arafat',    color: 'red',    isBot: false, tokens: [-1, -1, -1, -1] },
+      { id: 'p2', name: 'Green Bot', color: 'green',  isBot: true,  tokens: [-1, -1, -1, -1] },
+      { id: 'p3', name: 'Rahim',     color: 'yellow', isBot: false, tokens: [-1, -1, -1, -1] },
+      { id: 'p4', name: 'Blue Bot',  color: 'blue',   isBot: true,  tokens: [-1, -1, -1, -1] },
+    ],
+    turnColor: 'red', phase: 'awaitingRoll', dice: null, movableTokens: [], winner: null,
+  };
+}
+
+function midGameState() {
+  const s = freshState();
+  s.players[0].tokens = [12, -1, 50, 53];   // red: track, yard, last track cell, home col
+  s.players[1].tokens = [-1, -1, 3, -1];    // green: one out
+  s.players[2].tokens = [20, 20, -1, 56];   // yellow: stacked pair + one home (center)
+  s.players[3].tokens = [-1, 5, 5, -1];     // blue: stacked pair
+  return s;
+}
+
+function push(next) {
+  cur = next;
+  B.setState(clone(cur), MY);
+  log(`setState → turn=${cur.turnColor} phase=${cur.phase} dice=${cur.dice} movable=[${cur.movableTokens}]`);
+}
+
+document.getElementById('b-init').onclick = async () => {
+  if (!initialized) {
+    log('init(container)…');
+    await B.init(document.getElementById('board'));
+    initialized = true;
+    B.onUserRoll = () => log('EVENT → onUserRoll()  (app would ask server to roll)', 'evt');
+    B.onTokenPick = i => log(`EVENT → onTokenPick(${i})  (app would send move)`, 'evt');
+    log('init done ✓ — interface: ' + Object.keys(B).join(', '), 'ok');
+  }
+  push(midGameState());
+  log('mid-game: stacked tokens, home column, center-home token placed', 'ok');
+};
+
+document.getElementById('b-roll').onclick = async () => {
+  if (!cur) return log('press 1 first');
+  log('animateDice(5) — tumbling…');
+  await B.animateDice(5);
+  log('dice settled on 5 ✓', 'ok');
+  const n = clone(cur);
+  n.dice = 5; n.phase = 'awaitingMove'; n.movableTokens = [0, 2];
+  push(n);
+};
+
+document.getElementById('b-hl').onclick = () => {
+  if (!cur) return log('press 1 first');
+  const n = clone(cur);
+  n.phase = 'awaitingMove'; n.turnColor = 'red'; n.movableTokens = [1, 3];
+  push(n);
+  log('movable tokens 1 & 3 should pulse gold — tap one to fire onTokenPick', 'ok');
+};
+
+document.getElementById('b-move').onclick = () => {
+  if (!cur) return log('press 1 first');
+  const n = clone(cur);
+  const i = n.players[0].tokens.indexOf(12);
+  if (i < 0) return log('red has no token at pos 12 (reset first)');
+  n.players[0].tokens[i] = 18;             // +6 cells with hop animation
+  n.phase = 'awaitingRoll'; n.turnColor = 'green'; n.movableTokens = [];
+  push(n);
+  log('token hops 6 cells; pedestal slides to green side', 'ok');
+};
+
+document.getElementById('b-capture').onclick = () => {
+  if (!cur) return log('press 1 first');
+  const n = clone(cur);
+  // red token0 -> abs 16 (pos 16), landing on green token2 (pos 3 -> abs 16): capture
+  const ri = n.players[0].tokens.findIndex(t => t >= 0 && t <= 50);
+  const gi = n.players[1].tokens.findIndex(t => t === 3);
+  if (ri < 0 || gi < 0) return log('need red on track + green at pos 3 (reset first)');
+  n.players[0].tokens[ri] = 16;
+  n.players[1].tokens[gi] = -1;            // captured back to yard
+  n.phase = 'awaitingRoll'; n.turnColor = 'green'; n.movableTokens = [];
+  push(n);
+  log('capture: red hops in, green token flies back to yard', 'ok');
+};
+
+document.getElementById('b-myturn').onclick = () => {
+  if (!cur) return log('press 1 first');
+  const n = clone(cur);
+  n.turnColor = 'red'; n.phase = 'awaitingRoll'; n.movableTokens = [];
+  push(n);
+  log('your turn — dice should glow with TAP TO ROLL; tap it', 'ok');
+};
+
+document.getElementById('b-winner').onclick = () => {
+  B.showWinner('yellow');
+  log('showWinner(yellow) — confetti + banner', 'ok');
+};
+
+document.getElementById('b-reset').onclick = () => {
+  if (!initialized) return log('press 1 first');
+  push(freshState());
+  log('fresh game — all tokens in yards', 'ok');
+};
+
+// ?auto=1 — headless self-test: init, mid-game, dice roll, winner (for screenshots)
+if (new URLSearchParams(location.search).has('auto')) {
+  (async () => {
+    document.getElementById('b-init').click();
+    await new Promise(r => setTimeout(r, 3000));
+    document.getElementById('b-roll').click();
+    await new Promise(r => setTimeout(r, 3000));
+    document.getElementById('b-winner').click();
+    log('AUTO sequence done', 'ok');
+  })();
+}
+</script>
+</body>
+</html>

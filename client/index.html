@@ -1,0 +1,726 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<meta name="theme-color" content="#0a0e2a">
+<meta name="description" content="Ludo Master 3D — play Ludo with virtual coins. No real money involved.">
+<title>Ludo Master 3D</title>
+<link rel="manifest" href="manifest.json">
+<link rel="icon" type="image/svg+xml" href="icon.svg">
+<link rel="apple-touch-icon" href="icon.svg">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Hind+Siliguri:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="css/style.css">
+<!-- Socket.IO client (optional): if reachable, socket.js uses it; otherwise it
+     falls back to a native WebSocket with the same event names. -->
+<script src="https://cdn.socket.io/4.7.5/socket.io.min.js" defer></script>
+<!-- Telegram WebApp SDK: only active when the game runs inside Telegram.
+     Expands to fullscreen and applies Telegram's theme. Harmless elsewhere. -->
+<script src="https://telegram.org/js/telegram-web-app.js"></script>
+<script>
+  if (window.Telegram && Telegram.WebApp) {
+    Telegram.WebApp.ready();
+    Telegram.WebApp.expand();
+  }
+</script>
+<!-- Three.js for the 3D board module (board3d.js). Deferred module scripts run
+     before DOMContentLoaded, so window.LudoBoard is ready when app.js uses it. -->
+<script type="importmap">
+{
+  "imports": {
+    "three": "https://unpkg.com/three@0.160.0/build/three.module.js",
+    "three/addons/": "https://unpkg.com/three@0.160.0/examples/jsm/"
+  }
+}
+</script>
+</head>
+<body>
+
+<!-- ============ SVG ICON / ART DEFS ============ -->
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <defs>
+    <linearGradient id="goldGrad" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#ffe9a8"/>
+      <stop offset=".55" stop-color="#f7c948"/>
+      <stop offset="1" stop-color="#d99a1f"/>
+    </linearGradient>
+
+    <symbol id="icon-die" viewBox="0 0 64 64">
+      <rect x="5" y="5" width="54" height="54" rx="13" fill="#fff" stroke="#c9c2b4" stroke-width="3"/>
+      <g fill="#2b2b2b">
+        <circle cx="21" cy="21" r="5.5"/><circle cx="43" cy="21" r="5.5"/>
+        <circle cx="32" cy="32" r="5.5"/>
+        <circle cx="21" cy="43" r="5.5"/><circle cx="43" cy="43" r="5.5"/>
+      </g>
+    </symbol>
+
+    <symbol id="icon-coin" viewBox="0 0 48 48">
+      <circle cx="24" cy="24" r="20" fill="url(#goldGrad)" stroke="#8a5a00" stroke-width="2.5"/>
+      <circle cx="24" cy="24" r="13" fill="none" stroke="#8a5a00" stroke-width="2" opacity=".65"/>
+      <ellipse cx="18" cy="16" rx="7" ry="4" fill="#fff" opacity=".45" transform="rotate(-25 18 16)"/>
+    </symbol>
+
+    <symbol id="icon-coins" viewBox="0 0 48 48">
+      <g fill="url(#goldGrad)" stroke="#8a5a00" stroke-width="2">
+        <ellipse cx="24" cy="34" rx="15" ry="7"/>
+        <ellipse cx="24" cy="26" rx="15" ry="7"/>
+        <ellipse cx="24" cy="18" rx="15" ry="7"/>
+      </g>
+      <ellipse cx="24" cy="18" rx="10" ry="4" fill="#fff" opacity=".35"/>
+    </symbol>
+
+    <symbol id="icon-plus" viewBox="0 0 24 24">
+      <rect x="10" y="4" width="4" height="16" rx="2" fill="currentColor"/>
+      <rect x="4" y="10" width="16" height="4" rx="2" fill="currentColor"/>
+    </symbol>
+
+    <symbol id="icon-x" viewBox="0 0 24 24">
+      <path d="M6 6l12 12M18 6L6 18" stroke="currentColor" stroke-width="3.4" stroke-linecap="round"/>
+    </symbol>
+    <symbol id="icon-download" viewBox="0 0 24 24">
+      <path d="M12 3v12m0 0l-5-5m5 5l5-5M4 19h16" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/>
+    </symbol>
+
+    <symbol id="icon-back" viewBox="0 0 24 24">
+      <path d="M14 5l-7 7 7 7" fill="none" stroke="currentColor" stroke-width="3.4" stroke-linecap="round" stroke-linejoin="round"/>
+    </symbol>
+
+    <symbol id="icon-bell" viewBox="0 0 24 24">
+      <path d="M12 3a6 6 0 0 0-6 6v4l-2 3h16l-2-3V9a6 6 0 0 0-6-6z" fill="currentColor"/>
+      <circle cx="12" cy="19" r="2.4" fill="currentColor"/>
+    </symbol>
+
+    <symbol id="icon-chat" viewBox="0 0 24 24">
+      <path d="M12 3C6.5 3 2 6.9 2 11.7c0 2.7 1.4 5.1 3.7 6.7L5 21l3.6-1.6c1.1.3 2.2.5 3.4.5 5.5 0 10-3.9 10-8.7S17.5 3 12 3z" fill="currentColor"/>
+    </symbol>
+
+    <symbol id="icon-send" viewBox="0 0 24 24">
+      <path d="M3 11.5L21 3l-6.5 18-4-7.5L3 11.5z" fill="currentColor"/>
+    </symbol>
+
+    <symbol id="icon-wallet" viewBox="0 0 24 24">
+      <path d="M3 7a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V7z" fill="none" stroke="currentColor" stroke-width="2.4"/>
+      <path d="M3 9h16" stroke="currentColor" stroke-width="2.4"/>
+      <circle cx="17" cy="14.5" r="1.8" fill="currentColor"/>
+    </symbol>
+
+    <symbol id="icon-gear" viewBox="0 0 24 24">
+      <g fill="currentColor">
+        <circle cx="12" cy="12" r="3.2"/>
+        <g>
+          <rect x="10.8" y="2.5" width="2.4" height="5" rx="1"/>
+          <rect x="10.8" y="16.5" width="2.4" height="5" rx="1"/>
+          <rect x="2.5" y="10.8" width="5" height="2.4" rx="1"/>
+          <rect x="16.5" y="10.8" width="5" height="2.4" rx="1"/>
+          <rect x="10.8" y="2.5" width="2.4" height="5" rx="1" transform="rotate(45 12 12)"/>
+          <rect x="10.8" y="16.5" width="2.4" height="5" rx="1" transform="rotate(45 12 12)"/>
+          <rect x="2.5" y="10.8" width="5" height="2.4" rx="1" transform="rotate(45 12 12)"/>
+          <rect x="16.5" y="10.8" width="5" height="2.4" rx="1" transform="rotate(45 12 12)"/>
+        </g>
+      </g>
+    </symbol>
+
+    <symbol id="icon-trophy" viewBox="0 0 24 24">
+      <path d="M7 4h10v2h3v2a5 5 0 0 1-5 5h-.6A6 6 0 0 1 13 15.9V19h3v2H8v-2h3v-3.1A6 6 0 0 1 9.6 13H9a5 5 0 0 1-5-5V6h3V4z" fill="currentColor"/>
+      <path d="M7 6H4v2a3 3 0 0 0 3 3V6zm10 0v5a3 3 0 0 0 3-3V6h-3z" fill="currentColor" opacity=".7"/>
+    </symbol>
+
+    <symbol id="icon-pencil" viewBox="0 0 24 24">
+      <path d="M4 20l1-4L16.5 4.5a2.1 2.1 0 0 1 3 3L8 19l-4 1z" fill="currentColor"/>
+    </symbol>
+
+    <symbol id="icon-headset" viewBox="0 0 24 24">
+      <path d="M4 13a8 8 0 0 1 16 0" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"/>
+      <rect x="3" y="12" width="5" height="8" rx="2.4" fill="currentColor"/>
+      <rect x="16" y="12" width="5" height="8" rx="2.4" fill="currentColor"/>
+      <path d="M19 20a4 4 0 0 1-4 2h-2" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/>
+    </symbol>
+
+    <!-- Hero art: tilted mini board + dice cluster -->
+    <symbol id="art-hero" viewBox="0 0 220 170">
+      <g transform="rotate(-9 110 78)">
+        <rect x="58" y="26" width="104" height="104" rx="12" fill="#f6e7c6" stroke="#5c1a1a" stroke-width="5"/>
+        <rect x="66" y="34" width="38" height="38" rx="6" fill="#e63946"/>
+        <rect x="116" y="34" width="38" height="38" rx="6" fill="#2fbf71"/>
+        <rect x="66" y="84" width="38" height="38" rx="6" fill="#f4b400"/>
+        <rect x="116" y="84" width="38" height="38" rx="6" fill="#3b82f6"/>
+        <rect x="102" y="72" width="22" height="22" fill="#fff" stroke="#5c1a1a" stroke-width="3"/>
+      </g>
+      <ellipse cx="52" cy="148" rx="26" ry="7" fill="#000" opacity=".28"/>
+      <ellipse cx="118" cy="152" rx="28" ry="7" fill="#000" opacity=".28"/>
+      <ellipse cx="176" cy="146" rx="24" ry="7" fill="#000" opacity=".28"/>
+      <g transform="rotate(-12 52 122)">
+        <rect x="29" y="99" width="46" height="46" rx="10" fill="#fff" stroke="#cfc8b8" stroke-width="3"/>
+        <g fill="#2b2b2b"><circle cx="41" cy="111" r="4.6"/><circle cx="63" cy="111" r="4.6"/><circle cx="52" cy="122" r="4.6"/><circle cx="41" cy="133" r="4.6"/><circle cx="63" cy="133" r="4.6"/></g>
+      </g>
+      <g transform="rotate(8 118 126)">
+        <rect x="95" y="103" width="46" height="46" rx="10" fill="#fff" stroke="#cfc8b8" stroke-width="3"/>
+        <g fill="#2b2b2b"><circle cx="107" cy="115" r="4.6"/><circle cx="129" cy="126" r="4.6"/><circle cx="107" cy="137" r="4.6"/></g>
+      </g>
+      <g transform="rotate(-6 176 120)">
+        <rect x="153" y="97" width="46" height="46" rx="10" fill="#fff" stroke="#cfc8b8" stroke-width="3"/>
+        <g fill="#2b2b2b"><circle cx="165" cy="109" r="4.6"/><circle cx="187" cy="131" r="4.6"/></g>
+      </g>
+    </symbol>
+
+    <!-- LudoPro-style UI icons -->
+    <symbol id="icon-home" viewBox="0 0 24 24">
+      <path d="M3 11.5L12 4l9 7.5V20a1.5 1.5 0 0 1-1.5 1.5H14v-6h-4v6H4.5A1.5 1.5 0 0 1 3 20v-8.5z" fill="currentColor"/>
+    </symbol>
+    <symbol id="icon-gamepad" viewBox="0 0 24 24">
+      <path d="M7 7h10a5 5 0 0 1 5 5c0 2.8-2.2 5-5 5-1.2 0-2.3-.4-3.2-1.1L12 14.6l-1.8 1.3A5 5 0 0 1 7 17c-2.8 0-5-2.2-5-5a5 5 0 0 1 5-5z" fill="none" stroke="currentColor" stroke-width="2.2"/>
+      <path d="M8 11.5v3M6.5 13h3" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
+      <circle cx="15.5" cy="12" r="1.3" fill="currentColor"/><circle cx="17.8" cy="14" r="1.3" fill="currentColor"/>
+    </symbol>
+    <symbol id="icon-user" viewBox="0 0 24 24">
+      <circle cx="12" cy="8" r="4" fill="currentColor"/>
+      <path d="M4 21c0-4 3.6-6.5 8-6.5s8 2.5 8 6.5v.5H4v-.5z" fill="currentColor"/>
+    </symbol>
+    <symbol id="icon-mail" viewBox="0 0 24 24">
+      <rect x="3" y="5" width="18" height="14" rx="3" fill="none" stroke="currentColor" stroke-width="2.2"/>
+      <path d="M4 7l8 6 8-6" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/>
+    </symbol>
+    <symbol id="icon-lock" viewBox="0 0 24 24">
+      <rect x="5" y="10" width="14" height="10" rx="2.5" fill="currentColor"/>
+      <path d="M8 10V7a4 4 0 0 1 8 0v3" fill="none" stroke="currentColor" stroke-width="2.4"/>
+    </symbol>
+    <symbol id="icon-gift" viewBox="0 0 24 24">
+      <rect x="4" y="9" width="16" height="4" rx="1" fill="currentColor"/>
+      <path d="M6 13v7a1.5 1.5 0 0 0 1.5 1.5H11V13H6zm12 0h-5v8.5h3.5A1.5 1.5 0 0 0 18 20v-7zM12 9v12" fill="currentColor"/>
+      <path d="M12 9C10 9 7 8.5 7 6.5 7 5 8 4 9.5 4c2 0 2.5 3 2.5 5zm0 0c2 0 5-.5 5-2.5 0-1.5-1-2.5-2.5-2.5-2 0-2.5 3-2.5 5z" fill="none" stroke="currentColor" stroke-width="1.8"/>
+    </symbol>
+    <symbol id="icon-chart" viewBox="0 0 24 24">
+      <path d="M4 20V10m6 10V4m6 16v-8" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round"/>
+    </symbol>
+    <symbol id="icon-filter" viewBox="0 0 24 24">
+      <path d="M4 5h16l-6 8v6l-4 2v-8L4 5z" fill="currentColor"/>
+    </symbol>
+    <symbol id="icon-cal" viewBox="0 0 24 24">
+      <rect x="4" y="6" width="16" height="14" rx="2.5" fill="none" stroke="currentColor" stroke-width="2.2"/>
+      <path d="M4 10h16M8 3v5M16 3v5" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/>
+    </symbol>
+    <symbol id="icon-cam" viewBox="0 0 24 24">
+      <rect x="3" y="7" width="18" height="13" rx="3" fill="currentColor"/>
+      <circle cx="12" cy="13.5" r="3.6" fill="#0a0e2a"/>
+      <path d="M8.5 7l1.5-2.5h4L15.5 7" fill="currentColor"/>
+    </symbol>
+  </defs>
+</svg>
+
+<div id="app">
+
+  <!-- ============ SPLASH ============ -->
+  <section id="screen-splash" class="screen">
+    <div class="splash-wrap">
+      <div class="brand-logo xl"><span class="logo-die"><svg viewBox="0 0 64 64"><use href="#icon-die"/></svg></span><span class="logo-text">LUDO<em>MASTER</em></span></div>
+      <div class="spinner"></div>
+      <p class="splash-tag" data-i18n="splash.tag">Virtual coins only · Just for fun</p>
+    </div>
+  </section>
+
+  <!-- ============ LANDING (logged-out marketing page) ============ -->
+  <section id="screen-landing" class="screen">
+    <div class="lp-wrap">
+      <header class="lp-top">
+        <div class="brand-logo"><span class="logo-die"><svg viewBox="0 0 64 64"><use href="#icon-die"/></svg></span><span class="logo-text">LUDO<em>MASTER</em></span></div>
+        <div class="lp-auth-btns">
+          <button class="btn-ghost" id="lp-login" type="button" data-i18n="auth.login">Login</button>
+          <button class="btn-grad sm" id="lp-signup" type="button" data-i18n="auth.signup">Sign Up</button>
+        </div>
+      </header>
+      <div class="lp-badge">✨ <span data-i18n="lp.badge">THE #1 GAMING PLATFORM</span></div>
+      <h1 class="lp-h1"><span data-i18n="lp.playLudo">PLAY LUDO</span><br><span class="grad-text" data-i18n="lp.winPrizes">WIN BIG PRIZES</span></h1>
+      <p class="lp-sub" data-i18n="lp.sub">Join thousands of players on the most exciting Ludo platform. Daily tournaments, fair gameplay, and huge coin prizes waiting for you.</p>
+      <button class="btn-white block big" id="lp-playnow" type="button"><svg class="ic"><use href="#icon-gamepad"/></svg> <span data-i18n="lp.playNow">PLAY NOW</span></button>
+      <button class="btn-dark block" id="lp-download" type="button"><svg class="ic"><use href="#icon-download"/></svg> <span data-i18n="home.downloadApp">DOWNLOAD APP</span></button>
+      <div class="lp-stats">
+        <div><b>10K+</b><span data-i18n="lp.players">PLAYERS</span></div>
+        <div><b>5M+</b><span data-i18n="lp.coinsWon">COINS WON</span></div>
+        <div><b>24/7</b><span data-i18n="lp.support">SUPPORT</span></div>
+      </div>
+      <p class="lp-foot" data-i18n="auth.note">Play with virtual coins. No real money involved.</p>
+    </div>
+  </section>
+
+  <!-- ============ AUTH ============ -->
+  <section id="screen-auth" class="screen">
+    <div class="auth-wrap">
+      <div class="brand-logo xl"><span class="logo-die"><svg viewBox="0 0 64 64"><use href="#icon-die"/></svg></span><span class="logo-text">LUDO<em>MASTER</em></span></div>
+      <p class="auth-tag" data-i18n="lp.tagline">Play, Win & Earn Coins</p>
+      <div class="auth-card">
+        <div class="tabs">
+          <button id="tab-login" class="tab active" type="button" data-i18n="auth.login">Login</button>
+          <button id="tab-signup" class="tab" type="button" data-i18n="auth.signup">Sign Up</button>
+        </div>
+        <form id="form-login" class="auth-form" novalidate>
+          <h2 class="auth-title" data-i18n="auth.welcomeBack">Welcome Back!</h2>
+          <label><span data-i18n="auth.emailOrPhone">Email or Phone</span>
+            <span class="inp-wrap"><svg class="ic"><use href="#icon-mail"/></svg><input id="login-email" type="text" data-i18n-ph="auth.emailOrPhonePh" placeholder="you@email.com or 01XXXXXXXXX" autocomplete="username"></span>
+          </label>
+          <label><span data-i18n="auth.password">Password</span>
+            <span class="inp-wrap"><svg class="ic"><use href="#icon-lock"/></svg><input id="login-password" type="password" data-i18n-ph="auth.passwordPh" placeholder="Your password" autocomplete="current-password"></span>
+          </label>
+          <p class="form-err" id="login-err"></p>
+          <button class="btn-grad block big" type="submit"><span data-i18n="auth.loginSecure">LOGIN SECURELY</span> →</button>
+          <button class="link-btn" id="forgot-link" type="button" data-i18n="auth.forgot">Forgot password?</button>
+          <p class="auth-switch"><span data-i18n="auth.newTo">New here?</span> <button type="button" class="link-btn inline" id="goto-signup" data-i18n="auth.createAccount">Create Account</button></p>
+        </form>
+        <form id="form-signup" class="auth-form hidden" novalidate>
+          <h2 class="auth-title" data-i18n="auth.joinTitle">Join the Game!</h2>
+          <label><span data-i18n="auth.name">Name</span>
+            <span class="inp-wrap"><svg class="ic"><use href="#icon-user"/></svg><input id="signup-name" type="text" data-i18n-ph="auth.namePh" placeholder="Your name" autocomplete="name"></span>
+          </label>
+          <label><span data-i18n="auth.email">Email</span>
+            <span class="inp-wrap"><svg class="ic"><use href="#icon-mail"/></svg><input id="signup-email" type="email" placeholder="you@email.com" autocomplete="email"></span>
+          </label>
+          <div class="or-divider"><span data-i18n="auth.or">or</span></div>
+          <label><span data-i18n="auth.phone">Phone</span>
+            <span class="inp-wrap"><svg class="ic"><use href="#icon-user"/></svg><input id="signup-phone" type="tel" data-i18n-ph="auth.phonePh" placeholder="01XXXXXXXXX" autocomplete="tel"></span>
+          </label>
+          <label><span data-i18n="auth.password">Password</span>
+            <span class="inp-wrap"><svg class="ic"><use href="#icon-lock"/></svg><input id="signup-password" type="password" data-i18n-ph="auth.passwordMinPh" placeholder="Min. 6 characters" autocomplete="new-password"></span>
+          </label>
+          <p class="form-err" id="signup-err"></p>
+          <button class="btn-grad block big" type="submit"><span data-i18n="auth.createAccount">Create Account</span> →</button>
+          <p class="auth-switch"><span data-i18n="auth.haveAccount">Have an account?</span> <button type="button" class="link-btn inline" id="goto-login" data-i18n="auth.login">Login</button></p>
+        </form>
+        <form id="form-forgot" class="auth-form hidden" novalidate>
+          <h2 class="auth-title" data-i18n="auth.forgotTitle">Reset Password</h2>
+          <p class="auth-note" data-i18n="auth.forgotNote">Enter your email or phone — we'll send a 6-digit reset code.</p>
+          <label><span data-i18n="auth.emailOrPhone">Email or Phone</span>
+            <span class="inp-wrap"><svg class="ic"><use href="#icon-mail"/></svg><input id="forgot-login" type="text" data-i18n-ph="auth.emailOrPhonePh" placeholder="you@email.com or 01XXXXXXXXX"></span>
+          </label>
+          <p class="form-err" id="forgot-err"></p>
+          <button class="btn-grad block big" type="submit" data-i18n="auth.sendCode">Send Code</button>
+          <button class="link-btn" id="forgot-back" type="button" data-i18n="auth.backToLogin">← Back to login</button>
+        </form>
+        <form id="form-reset" class="auth-form hidden" novalidate>
+          <h2 class="auth-title" data-i18n="auth.forgotTitle">Reset Password</h2>
+          <p class="auth-note" data-i18n="auth.resetNote">Enter the 6-digit code and choose a new password.</p>
+          <label><span data-i18n="auth.code">Reset Code</span>
+            <span class="inp-wrap"><svg class="ic"><use href="#icon-lock"/></svg><input id="reset-code" type="text" inputmode="numeric" maxlength="6" placeholder="123456"></span>
+          </label>
+          <label><span data-i18n="auth.newPassword">New Password</span>
+            <span class="inp-wrap"><svg class="ic"><use href="#icon-lock"/></svg><input id="reset-password" type="password" data-i18n-ph="auth.passwordMinPh" placeholder="Min. 6 characters" autocomplete="new-password"></span>
+          </label>
+          <p class="form-err" id="reset-err"></p>
+          <p class="form-ok" id="reset-ok"></p>
+          <button class="btn-grad block big" type="submit" data-i18n="auth.resetPassword">Reset Password</button>
+          <button class="link-btn" id="reset-back" type="button" data-i18n="auth.backToLogin">← Back to login</button>
+        </form>
+      </div>
+      <p class="auth-note" data-i18n="auth.note">Play with virtual coins. No real money involved.</p>
+    </div>
+  </section>
+
+  <!-- ============ HOME ============ -->
+  <section id="screen-home" class="screen has-nav">
+    <header class="lp-header">
+      <div class="brand-logo"><span class="logo-die"><svg viewBox="0 0 64 64"><use href="#icon-die"/></svg></span><span class="logo-text">LUDO<em>MASTER</em></span></div>
+      <div class="lp-header-right">
+        <button class="lang-toggle" data-lang-toggle type="button">বাং</button>
+        <button class="icon-btn" id="support-btn" aria-label="Support chat"><svg class="ic"><use href="#icon-bell"/></svg></button>
+        <button class="avatar-btn" id="avatar-btn" aria-label="Open profile"><span class="avatar" id="home-avatar">?</span><span class="avatar-dot"></span></button>
+      </div>
+    </header>
+    <span id="home-name" class="visually-hidden">Player</span>
+
+    <div class="promo-carousel">
+      <div id="announce-bar" class="announce-bar hidden"></div>
+      <div class="promo-fallback" id="promo-fallback">
+        <span class="promo-tag" data-i18n="home.newTag">NEW</span>
+        <h3 data-i18n="home.megaTournament">Mega Tournament</h3>
+        <p data-i18n="home.megaSub">Join &amp; win big coin prize pools!</p>
+        <button class="btn-white sm" id="promo-join" type="button" data-i18n="home.joinNow">Join Now</button>
+      </div>
+      <div class="promo-dots" id="promo-dots"></div>
+    </div>
+
+    <div class="balance-card">
+      <div class="bc-row">
+        <div>
+          <p class="bc-label" data-i18n="home.totalBalance">TOTAL BALANCE</p>
+          <p class="bc-amount"><svg class="ic"><use href="#icon-coin"/></svg><b id="home-balance">0</b><span data-i18n="wallet.coins">coins</span></p>
+        </div>
+        <span class="bc-wallet"><svg class="ic"><use href="#icon-wallet"/></svg></span>
+      </div>
+      <button class="btn-grad block" id="earn-coins-btn" type="button">＋ <span data-i18n="home.earnCoins">EARN COINS</span></button>
+      <div class="cash-row">
+        <button class="cash-btn" id="add-coins-btn" type="button">🪙 <span data-i18n="store.addCoins">Add Coins</span></button>
+        <button class="cash-btn dark" id="redeem-btn" type="button">🎁 <span data-i18n="redeem.redeem">Redeem</span></button>
+      </div>
+    </div>
+
+    <h3 class="sec-title" data-i18n="home.playEarn">PLAY &amp; EARN</h3>
+    <div class="pe-grid">
+      <button class="pe-card teal" id="refer-earn-btn" type="button">
+        <span class="pe-ic">🎁</span><b data-i18n="home.referEarn">Refer &amp; Earn</b><span class="pe-sub" data-i18n="home.referEarnSub">Get bonus coins</span><span class="pe-arrow">›</span>
+      </button>
+      <button class="pe-card purple" id="tournaments-btn" type="button">
+        <span class="pe-ic">🏆</span><b data-i18n="home.tournament">Tournament</b><span class="pe-sub" data-i18n="home.tournamentSub">Big Rewards</span><span class="pe-arrow">›</span>
+        <span class="tb-live hidden" id="tournaments-live" data-i18n="home.live">LIVE</span>
+      </button>
+    </div>
+
+    <h3 class="sec-title" data-i18n="home.quickPlay">QUICK PLAY</h3>
+    <div class="mode-grid">
+      <div class="mode-cell">
+        <button class="mode-tile m2p" id="mode-2p" aria-label="2 Player"><span class="tile-badge">2P</span><svg class="tile-ic" viewBox="0 0 64 64"><use href="#icon-die"/></svg></button>
+        <p class="mode-label" data-i18n="home.p2">2 Player</p>
+        <p class="online-count" id="online-2p">—</p>
+      </div>
+      <div class="mode-cell">
+        <button class="mode-tile m4p" id="mode-4p" aria-label="4 Player"><span class="tile-badge">4P</span><svg class="tile-ic" viewBox="0 0 64 64"><use href="#icon-die"/></svg></button>
+        <p class="mode-label" data-i18n="home.p4">4 Player</p>
+        <p class="online-count" id="online-4p">—</p>
+      </div>
+      <div class="mode-cell">
+        <button class="mode-tile mpriv" id="private-btn" aria-label="Private Room"><span class="tile-badge">PVT</span><span class="tile-emoji">🔑</span></button>
+        <p class="mode-label" data-i18n="home.private">PRIVATE</p>
+      </div>
+      <div class="mode-cell">
+        <button class="mode-tile mlb" id="leaderboard-btn" aria-label="Leaderboard"><span class="tile-badge">TOP</span><span class="tile-emoji">🏅</span></button>
+        <p class="mode-label" data-i18n="home.leaderboard">Leaderboard</p>
+      </div>
+    </div>
+
+    <button class="btn-dark block" id="download-app-btn" type="button"><svg class="ic"><use href="#icon-download"/></svg> <span data-i18n="home.downloadApp">Download App</span></button>
+    <div class="custom-links" id="custom-links"></div>
+    <button class="admin-link hidden" id="admin-link" data-i18n="home.adminPanel">Admin Panel</button>
+
+    <nav class="bottom-nav" aria-label="Main navigation">
+      <button class="bn-btn active" data-nav="home" type="button"><svg class="ic"><use href="#icon-home"/></svg><span data-i18n="nav.home">Home</span></button>
+      <button class="bn-btn" data-nav="events" type="button"><svg class="ic"><use href="#icon-trophy"/></svg><span data-i18n="nav.events">Events</span></button>
+      <button class="bn-play" data-nav="play" type="button" aria-label="Play"><svg class="ic"><use href="#icon-gamepad"/></svg></button>
+      <button class="bn-btn" data-nav="wallet" type="button"><svg class="ic"><use href="#icon-wallet"/></svg><span data-i18n="nav.wallet">Wallet</span></button>
+      <button class="bn-btn" data-nav="profile" type="button"><svg class="ic"><use href="#icon-user"/></svg><span data-i18n="nav.profile">Profile</span></button>
+    </nav>
+  </section>
+
+  <!-- ============ ROOMS ============ -->
+  <section id="screen-rooms" class="screen">
+    <div class="rooms-head">
+      <h2 id="rooms-title">Two Players</h2>
+      <button class="x-btn" id="rooms-close" aria-label="Close"><svg class="ic"><use href="#icon-x"/></svg></button>
+    </div>
+    <div id="rooms-list" class="rooms-list"></div>
+  </section>
+
+  <!-- ============ GAME ============ -->
+  <section id="screen-game" class="screen">
+    <!-- The 3D board is mounted here by the board module (window.LudoBoard).
+         This shell only creates the container + HUD around it. -->
+    <div id="board-container"></div>
+    <div class="hud-top">
+      <div class="hud-info"><span id="hud-mode">2 Players</span><span class="dot">•</span><span><span data-i18n="rooms.entryWord">Entry</span> <b id="hud-entry">0</b></span></div>
+      <div class="hud-timer">
+        <div class="timer-track"><div class="timer-fill" id="timer-fill"></div></div>
+        <span id="timer-text">15s</span>
+      </div>
+      <button class="hud-x" id="game-leave" aria-label="Leave game"><svg class="ic"><use href="#icon-x"/></svg></button>
+    </div>
+    <div class="turn-banner hidden" id="turn-banner"><span class="turn-dice"><svg class="ic" viewBox="0 0 64 64"><use href="#icon-die"/></svg></span><b id="turn-text">YOUR TURN</b></div>
+    <div class="hud-hint hidden" id="hud-hint"></div>
+    <div class="hud-bottom">
+      <div class="chips" id="chips"></div>
+      <div class="dice-row">
+        <div class="move-fallback hidden" id="move-fallback"></div>
+        <button class="dice-btn" id="dice-btn" data-sound="dice" aria-label="Roll dice" disabled><svg class="ic"><use href="#icon-die"/></svg></button>
+      </div>
+    </div>
+    <button class="qc-btn hidden" id="qc-btn" aria-label="Quick chat">💬</button>
+    <div class="qc-popup" id="qc-popup">
+      <button type="button" data-msg="1" data-i18n="qc.m1">Good luck! 🍀</button>
+      <button type="button" data-msg="2" data-i18n="qc.m2">Nice move! 👏</button>
+      <button type="button" data-msg="3" data-i18n="qc.m3">Oops! 😅</button>
+      <button type="button" data-msg="4" data-i18n="qc.m4">Well played! 🎉</button>
+      <button type="button" data-msg="5" data-i18n="qc.m5">Your turn! ⏰</button>
+      <button type="button" data-msg="6" data-i18n="qc.m6">Haha! 😂</button>
+    </div>
+    <div class="qc-bubble" id="qc-bubble"></div>
+  </section>
+
+  <!-- ============ DASHBOARD ============ -->
+  <section id="screen-dashboard" class="screen">
+    <div class="dash-head">
+      <button class="back-btn" id="dash-back" aria-label="Back"><svg class="ic"><use href="#icon-back"/></svg></button>
+      <h2 data-i18n="dash.title">Dashboard</h2>
+    </div>
+    <div class="stat-grid" id="stat-grid"></div>
+  </section>
+
+  <!-- ============ WALLET ============ -->
+  <section id="screen-wallet" class="screen has-nav">
+    <div class="dash-head">
+      <button class="back-btn" id="wallet-back" aria-label="Back"><svg class="ic"><use href="#icon-back"/></svg></button>
+      <h2 data-i18n="wallet.title">Wallet</h2>
+    </div>
+    <div class="wallet-balance-card">
+      <svg class="ic"><use href="#icon-coins"/></svg>
+      <div class="wallet-balance-num"><b id="wallet-balance">0</b><span data-i18n="wallet.coins">coins</span></div>
+      <button class="btn-gold sm" id="wallet-daily-btn" type="button" data-i18n="wallet.dailyBonus">Daily Bonus</button>
+    </div>
+    <div class="cash-row wallet-cash">
+      <button class="cash-btn" id="wallet-store-btn" type="button">🪙 <span data-i18n="store.addCoins">Add Coins</span></button>
+      <button class="cash-btn dark" id="wallet-redeem-btn" type="button">🎁 <span data-i18n="redeem.redeem">Redeem</span></button>
+    </div>
+    <div class="wallet-tabs" role="tablist">
+      <button class="wallet-tab active" data-wtab="history" type="button" data-i18n="wallet.history">History</button>
+      <button class="wallet-tab" data-wtab="referral" type="button" data-i18n="wallet.referral">Referral</button>
+    </div>
+    <div id="wallet-pane"></div>
+    <nav class="bottom-nav" aria-label="Main navigation">
+      <button class="bn-btn" data-nav="home" type="button"><svg class="ic"><use href="#icon-home"/></svg><span data-i18n="nav.home">Home</span></button>
+      <button class="bn-btn" data-nav="events" type="button"><svg class="ic"><use href="#icon-trophy"/></svg><span data-i18n="nav.events">Events</span></button>
+      <button class="bn-play" data-nav="play" type="button" aria-label="Play"><svg class="ic"><use href="#icon-gamepad"/></svg></button>
+      <button class="bn-btn active" data-nav="wallet" type="button"><svg class="ic"><use href="#icon-wallet"/></svg><span data-i18n="nav.wallet">Wallet</span></button>
+      <button class="bn-btn" data-nav="profile" type="button"><svg class="ic"><use href="#icon-user"/></svg><span data-i18n="nav.profile">Profile</span></button>
+    </nav>
+  </section>
+
+  <!-- ============ COIN STORE (free daily packs) ============ -->
+  <section id="screen-store" class="screen has-nav">
+    <div class="dash-head">
+      <button class="back-btn" id="store-back" aria-label="Back"><svg class="ic"><use href="#icon-back"/></svg></button>
+      <h2 data-i18n="store.title">Coin Store</h2>
+    </div>
+    <p class="store-sub" data-i18n="store.sub">Free coin packs — claim each pack once a day. No payment, ever.</p>
+    <div id="store-packs" class="store-grid"><div class="loading" data-i18n="common.loading">Loading…</div></div>
+    <nav class="bottom-nav" aria-label="Main navigation">
+      <button class="bn-btn" data-nav="home" type="button"><svg class="ic"><use href="#icon-home"/></svg><span data-i18n="nav.home">Home</span></button>
+      <button class="bn-btn" data-nav="events" type="button"><svg class="ic"><use href="#icon-trophy"/></svg><span data-i18n="nav.events">Events</span></button>
+      <button class="bn-play" data-nav="play" type="button" aria-label="Play"><svg class="ic"><use href="#icon-gamepad"/></svg></button>
+      <button class="bn-btn" data-nav="wallet" type="button"><svg class="ic"><use href="#icon-wallet"/></svg><span data-i18n="nav.wallet">Wallet</span></button>
+      <button class="bn-btn" data-nav="profile" type="button"><svg class="ic"><use href="#icon-user"/></svg><span data-i18n="nav.profile">Profile</span></button>
+    </nav>
+  </section>
+
+  <!-- ============ REDEEM REWARDS (promo codes) ============ -->
+  <section id="screen-redeem" class="screen has-nav">
+    <div class="dash-head">
+      <button class="back-btn" id="redeem-back" aria-label="Back"><svg class="ic"><use href="#icon-back"/></svg></button>
+      <h2 data-i18n="redeem.title">Redeem Rewards</h2>
+    </div>
+    <div class="redeem-card">
+      <p class="bc-label" data-i18n="redeem.balance">Wallet Balance</p>
+      <p class="bc-amount"><svg class="ic"><use href="#icon-coin"/></svg><b id="redeem-balance">0</b><span data-i18n="wallet.coins">coins</span></p>
+    </div>
+    <div class="redeem-form">
+      <label data-i18n="redeem.codeLabel">Reward code</label>
+      <input id="redeem-code" type="text" autocapitalize="characters" autocomplete="off" spellcheck="false" data-i18n-ph="redeem.codePh" placeholder="e.g. WELCOME50">
+      <button class="btn-grad block" id="redeem-submit" type="button" data-i18n="redeem.submit">Submit</button>
+      <p class="form-err" id="redeem-err"></p>
+    </div>
+    <p class="store-sub" data-i18n="redeem.hint">Got a reward code from an event or announcement? Enter it above for free coins.</p>
+    <nav class="bottom-nav" aria-label="Main navigation">
+      <button class="bn-btn" data-nav="home" type="button"><svg class="ic"><use href="#icon-home"/></svg><span data-i18n="nav.home">Home</span></button>
+      <button class="bn-btn" data-nav="events" type="button"><svg class="ic"><use href="#icon-trophy"/></svg><span data-i18n="nav.events">Events</span></button>
+      <button class="bn-play" data-nav="play" type="button" aria-label="Play"><svg class="ic"><use href="#icon-gamepad"/></svg></button>
+      <button class="bn-btn" data-nav="wallet" type="button"><svg class="ic"><use href="#icon-wallet"/></svg><span data-i18n="nav.wallet">Wallet</span></button>
+      <button class="bn-btn" data-nav="profile" type="button"><svg class="ic"><use href="#icon-user"/></svg><span data-i18n="nav.profile">Profile</span></button>
+    </nav>
+  </section>
+
+  <!-- ============ PRIVATE ROOM (filled by feature build) ============ -->
+  <section id="screen-private" class="screen">
+    <div class="dash-head">
+      <button class="back-btn" id="private-back" aria-label="Back"><svg class="ic"><use href="#icon-back"/></svg></button>
+      <h2 data-i18n="priv.title">Private Room</h2>
+    </div>
+    <div id="private-body"></div>
+  </section>
+
+  <!-- ============ LEADERBOARD (filled by feature build) ============ -->
+  <section id="screen-leaderboard" class="screen">
+    <div class="dash-head">
+      <button class="back-btn" id="lb-back" aria-label="Back"><svg class="ic"><use href="#icon-back"/></svg></button>
+      <h2 data-i18n="lb.title">Leaderboard</h2>
+    </div>
+    <div class="wallet-tabs" role="tablist">
+      <button class="wallet-tab lb-tab active" data-lbtab="board" type="button" data-i18n="lb.tabBoard">🏅 Leaderboard</button>
+      <button class="wallet-tab lb-tab" data-lbtab="missions" type="button" data-i18n="lb.tabMissions">🎯 Missions</button>
+    </div>
+    <div class="lb-period-row" id="lb-period-row">
+      <button class="lb-period active" data-period="weekly" type="button" data-i18n="lb.weekly">Weekly</button>
+      <button class="lb-period" data-period="alltime" type="button" data-i18n="lb.allTime">All Time</button>
+    </div>
+    <div id="lb-me-rank"></div>
+    <div id="lb-pane"></div>
+  </section>
+
+  <!-- ============ TOURNAMENTS ============ -->
+  <section id="screen-tournaments" class="screen has-nav">
+    <div class="dash-head">
+      <button class="back-btn" id="tournaments-back" aria-label="Back"><svg class="ic"><use href="#icon-back"/></svg></button>
+      <h2><span data-i18n="tour.all">All</span> <span class="grad-text" data-i18n="tour.tournamentsWord">Tournaments</span></h2>
+    </div>
+    <div class="ttabs" role="tablist">
+      <button class="ttab active" data-ttab="all" type="button" data-i18n="tour.tabAll">All Match</button>
+      <button class="ttab" data-ttab="live" type="button" data-i18n="tour.tabLive">Live Now</button>
+      <button class="ttab" data-ttab="upcoming" type="button" data-i18n="tour.tabUpcoming">Upcoming</button>
+    </div>
+    <div class="tfilter">
+      <svg class="ic"><use href="#icon-filter"/></svg>
+      <select id="tour-fee-filter" aria-label="Filter by entry fee"></select>
+    </div>
+    <div id="tournament-list" class="tourney-list"></div>
+    <nav class="bottom-nav" aria-label="Main navigation">
+      <button class="bn-btn" data-nav="home" type="button"><svg class="ic"><use href="#icon-home"/></svg><span data-i18n="nav.home">Home</span></button>
+      <button class="bn-btn active" data-nav="events" type="button"><svg class="ic"><use href="#icon-trophy"/></svg><span data-i18n="nav.events">Events</span></button>
+      <button class="bn-play" data-nav="play" type="button" aria-label="Play"><svg class="ic"><use href="#icon-gamepad"/></svg></button>
+      <button class="bn-btn" data-nav="wallet" type="button"><svg class="ic"><use href="#icon-wallet"/></svg><span data-i18n="nav.wallet">Wallet</span></button>
+      <button class="bn-btn" data-nav="profile" type="button"><svg class="ic"><use href="#icon-user"/></svg><span data-i18n="nav.profile">Profile</span></button>
+    </nav>
+  </section>
+
+  <!-- ============ TOURNAMENT DETAIL ============ -->
+  <section id="screen-tournament" class="screen">
+    <div class="dash-head">
+      <button class="back-btn" id="tournament-back" aria-label="Back"><svg class="ic"><use href="#icon-back"/></svg></button>
+      <h2 id="tournament-title">Tournament</h2>
+    </div>
+    <div id="tournament-detail"></div>
+  </section>
+
+  <!-- ============ ADMIN ============ -->
+  <!-- ============ ADMIN (tabs are built by the ADMIN_TABS registry in js/app.js) ============ -->
+  <section id="screen-admin" class="screen">
+    <div class="dash-head">
+      <button class="back-btn" id="admin-back" aria-label="Back"><svg class="ic"><use href="#icon-back"/></svg></button>
+      <h2>Admin Panel</h2>
+    </div>
+    <div class="admin-tabs" id="admin-tabs" role="tablist"></div>
+    <div id="admin-panes"></div>
+  </section>
+
+</div><!-- /#app -->
+
+<!-- ============ PROFILE (page-style sheet) ============ -->
+<div class="modal-overlay profile-page" id="modal-profile">
+  <div class="modal profile-sheet" role="dialog" aria-label="My Profile">
+    <div class="dash-head">
+      <button class="back-btn" data-close aria-label="Back"><svg class="ic"><use href="#icon-back"/></svg></button>
+      <h2 data-i18n="prof.title">My Profile</h2>
+    </div>
+    <div class="pf-hero">
+      <div class="pf-avatar-wrap">
+        <span class="avatar huge" id="profile-avatar">?</span>
+        <button class="pf-cam" id="name-edit" aria-label="Edit name"><svg class="ic"><use href="#icon-cam"/></svg></button>
+      </div>
+      <h2 class="pf-name" id="profile-name">Player</h2>
+      <p class="pf-handle" id="profile-handle">@player</p>
+      <button class="btn-ghost sm" id="pf-edit-btn" type="button" data-i18n="prof.editDetails">EDIT DETAILS</button>
+    </div>
+    <div class="pf-stats">
+      <div class="pf-stat teal"><svg class="ic"><use href="#icon-gamepad"/></svg><b id="st-played">0</b><span data-i18n="prof.matches">MATCHES</span></div>
+      <div class="pf-stat gold"><span class="pf-trophy">🏆</span><b id="st-won">0</b><span data-i18n="prof.won">WON</span></div>
+      <div class="pf-stat blue"><svg class="ic"><use href="#icon-chart"/></svg><b id="st-rate">0%</b><span data-i18n="prof.winRate">WIN RATE</span></div>
+    </div>
+    <div class="pf-card">
+      <h3 class="pf-card-title" data-i18n="prof.accountInfo">ACCOUNT INFO</h3>
+      <div class="pf-info-row"><span class="pf-ic"><svg class="ic"><use href="#icon-mail"/></svg></span><div><span class="pf-lbl" data-i18n="prof.email">EMAIL</span><b id="pf-email">—</b></div></div>
+      <div class="pf-info-row"><span class="pf-ic"><svg class="ic"><use href="#icon-user"/></svg></span><div><span class="pf-lbl" data-i18n="prof.phone">PHONE</span><b id="pf-phone">—</b></div></div>
+      <div class="pf-info-row"><span class="pf-ic">🎁</span><div><span class="pf-lbl" data-i18n="prof.refCode">My referral code:</span><b id="st-ref-code" class="ref-code" role="button" tabindex="0" title="Tap to copy">—</b></div></div>
+      <div class="pf-info-row"><span class="pf-ic">💰</span><div><span class="pf-lbl" data-i18n="prof.refEarnings">Referral Earnings:</span><b id="st-ref-earn">0</b></div></div>
+      <div class="pf-info-row tg-row"><span class="pf-ic">✈️</span><div><span class="pf-lbl" data-i18n="prof.telegram">Telegram alerts:</span><span id="tg-link-wrap"><span class="tg-loading">…</span></span></div></div>
+      <div class="pf-info-row"><span class="pf-ic">🌐</span><div><span class="pf-lbl" data-i18n="prof.lang">Language / ভাষা:</span>
+        <span class="lang-seg"><button class="lang-seg-btn" data-lang-set="en" type="button">EN</button><button class="lang-seg-btn" data-lang-set="bn" type="button">বাং</button></span></div></div>
+      <div class="pf-info-row"><span class="pf-ic">🔊</span><div><span class="pf-lbl" data-i18n="prof.sound">SOUND</span><button class="btn-ghost sm" id="sound-toggle" type="button">🔊</button></div></div>
+      <div class="pf-info-row"><span class="pf-ic">📊</span><div><span class="pf-lbl" data-i18n="dash.title">Dashboard</span><button class="btn-ghost sm" id="pf-stats-btn" type="button" data-i18n="prof.viewStats">View Statistics</button></div></div>
+    </div>
+    <div class="profile-actions">
+      <button class="btn-grad block" id="logout-btn" data-i18n="prof.logout">Logout</button>
+    </div>
+  </div>
+</div>
+
+<!-- ============ INSTALL APP MODAL ============ -->
+<div class="modal-overlay" id="modal-install" hidden>
+  <div class="modal" role="dialog" aria-label="Download App">
+    <button class="modal-x" data-close aria-label="Close"><svg class="ic"><use href="#icon-x"/></svg></button>
+    <h2 class="modal-title" data-i18n="install.title">Download App</h2>
+    <p class="install-note" data-i18n="install.note">Install Ludo Master 3D on your phone — it will appear on your home screen like a real app, no Play Store needed.</p>
+    <div class="install-steps" id="install-steps"></div>
+  </div>
+</div>
+
+<!-- ============ WAITING OVERLAY ============ -->
+<div class="modal-overlay" id="overlay-waiting">
+  <div class="modal narrow" role="dialog" aria-label="Finding players">
+    <div class="spinner"></div>
+    <h2 class="modal-title" data-i18n="wait.title">Finding players…</h2>
+    <p class="waiting-sub" id="waiting-sub">2 Players · Entry 300</p>
+    <p class="waiting-count"><span data-i18n="wait.waiting">Waiting:</span> <b id="waiting-count">1</b></p>
+    <button class="btn-outline" id="waiting-cancel" data-i18n="wait.cancel">Cancel</button>
+  </div>
+</div>
+
+<!-- ============ GAME OVER MODAL ============ -->
+<div class="modal-overlay" id="modal-gameover">
+  <div class="modal narrow" role="dialog" aria-label="Game over">
+    <svg class="ic trophy-big"><use href="#icon-trophy"/></svg>
+    <h2 class="modal-title" id="go-title">Game Over</h2>
+    <p class="go-winner" id="go-winner"></p>
+    <p class="go-delta" id="go-delta"></p>
+    <button class="btn-gold" id="go-home" data-i18n="go.home">Home</button>
+  </div>
+</div>
+
+<!-- ============ WIN CELEBRATION ============ -->
+<div class="modal-overlay celebrate-overlay" id="overlay-celebrate">
+  <canvas id="confetti-canvas"></canvas>
+  <div class="celebrate-card">
+    <div class="celebrate-trophy">🏆</div>
+    <h2 class="celebrate-title" data-i18n="game.youWin">You Win!</h2>
+    <p class="celebrate-prize"><svg class="ic"><use href="#icon-coin"/></svg><b id="celebrate-coins">0</b> <span data-i18n="wallet.coins">coins</span></p>
+    <button class="btn-white sm" id="celebrate-dismiss" type="button" data-i18n="common.ok">OK</button>
+  </div>
+</div>
+
+<!-- ============ ADMIN ± COINS MODAL ============ -->
+<div class="modal-overlay" id="modal-admin-coins">
+  <div class="modal narrow" role="dialog" aria-label="Adjust coins">
+    <button class="modal-x" data-close aria-label="Close"><svg class="ic"><use href="#icon-x"/></svg></button>
+    <h2 class="modal-title">Adjust Coins</h2>
+    <p class="waiting-sub" id="admin-coins-user">User</p>
+    <div class="bonus-form">
+      <label>Amount (positive number)
+        <input id="admin-coins-amount" type="number" min="1" step="1" inputmode="numeric" placeholder="e.g. 1000">
+      </label>
+      <div class="profile-actions">
+        <button class="btn-gold" id="admin-coins-give" type="button">+ Give</button>
+        <button class="btn-outline" id="admin-coins-take" type="button">− Take</button>
+      </div>
+      <p class="form-err" id="admin-coins-err"></p>
+    </div>
+  </div>
+</div>
+
+<!-- ============ SUPPORT CHAT SHEET ============ -->
+<div class="modal-overlay" id="modal-support">
+  <div class="modal support-sheet" role="dialog" aria-label="Support chat">
+    <button class="modal-x" data-close aria-label="Close"><svg class="ic"><use href="#icon-x"/></svg></button>
+    <h2 class="modal-title" data-i18n="sup.title">Support Chat</h2>
+    <div id="support-messages" class="support-messages"></div>
+    <div class="support-input-row">
+      <input id="support-input" type="text" data-i18n-ph="sup.placeholder" placeholder="Type your message…" maxlength="1000" autocomplete="off">
+      <button class="btn-gold sm" id="support-send" type="button" data-i18n="sup.send">Send</button>
+    </div>
+  </div>
+</div>
+
+<div id="toast" role="status" aria-live="polite"></div>
+
+<script src="js/config.js"></script>
+<script src="js/i18n.js"></script>
+<script src="js/sound.js"></script>
+<script src="js/api.js"></script>
+<script src="js/socket.js"></script>
+<script src="js/install.js"></script>
+<!-- 3D board module: registers window.LudoBoard (Three.js 0.160.0, no build step) -->
+<script type="module" src="js/board3d.js"></script>
+<script src="js/app.js"></script>
+</body>
+</html>

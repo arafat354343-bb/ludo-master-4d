@@ -1,0 +1,24 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 192 192">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#7a1a1a"/>
+      <stop offset="1" stop-color="#3a0a0a"/>
+    </linearGradient>
+    <linearGradient id="gold" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#ffe9a8"/>
+      <stop offset=".55" stop-color="#f7c948"/>
+      <stop offset="1" stop-color="#d99a1f"/>
+    </linearGradient>
+  </defs>
+  <rect x="4" y="4" width="184" height="184" rx="42" fill="url(#bg)" stroke="url(#gold)" stroke-width="8"/>
+  <g transform="rotate(-12 96 100)">
+    <rect x="52" y="56" width="88" height="88" rx="18" fill="#ffffff" stroke="#cfc8b8" stroke-width="5"/>
+    <g fill="#2b2b2b">
+      <circle cx="76" cy="80" r="9"/><circle cx="116" cy="80" r="9"/>
+      <circle cx="96" cy="100" r="9"/>
+      <circle cx="76" cy="120" r="9"/><circle cx="116" cy="120" r="9"/>
+    </g>
+  </g>
+  <circle cx="148" cy="48" r="20" fill="url(#gold)" stroke="#8a5a00" stroke-width="3"/>
+  <circle cx="148" cy="48" r="12" fill="none" stroke="#8a5a00" stroke-width="2.5" opacity=".7"/>
+</svg>

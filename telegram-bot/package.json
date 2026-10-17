@@ -1,0 +1,1 @@
+{"dependencies":{"node-telegram-bot-api":"^0.66.0"},"description":"Telegram WebApp launcher bot for Ludo Master 3D (virtual coins only)","main":"bot.js","name":"ludo-telegram-bot","private":true,"scripts":{"start":"node bot.js"},"version":"1.0.0"}

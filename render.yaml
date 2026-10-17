@@ -1,0 +1,44 @@
+# Ludo Master 3D — Render Blueprint
+# Deploy: Render Dashboard → New → Blueprint → point at your repo (or upload).
+# Fill in the env vars below in the dashboard (they're marked sync: false).
+
+services:
+  # ---- Game server + web client (one process) ----
+  - type: web
+    name: ludo-game
+    runtime: node
+    plan: starter            # $7/mo — always-on (free tier sleeps; bad for a game)
+    buildCommand: npm install --prefix server
+    startCommand: npm start --prefix server
+    healthCheckPath: /api/announcements
+    envVars:
+      - key: NODE_VERSION
+        value: 20
+      - key: JWT_SECRET
+        generateValue: true  # random per deploy; set a fixed one if you redeploy often
+      - key: ADMIN_EMAILS
+        sync: false          # e.g. you@example.com  (your login email)
+      - key: DATABASE_URL
+        fromDatabase:
+          name: ludo-db
+          property: connectionString
+
+  # ---- Telegram bot (background worker) ----
+  - type: worker
+    name: ludo-telegram-bot
+    runtime: node
+    plan: starter            # $7/mo
+    buildCommand: npm install --prefix telegram-bot
+    startCommand: npm start --prefix telegram-bot
+    envVars:
+      - key: NODE_VERSION
+        value: 20
+      - key: BOT_TOKEN
+        sync: false          # from @BotFather
+      - key: GAME_URL
+        sync: false          # https://<your-render-web-service>.onrender.com
+
+databases:
+  - name: ludo-db
+    plan: starter            # $7/mo, persistent (free postgres expires after 30 days)
+    postgresMajorVersion: 16

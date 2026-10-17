@@ -1,0 +1,1 @@
+{"dependencies":{"bcryptjs":"^2.4.3","express":"^4.21.2","jsonwebtoken":"^9.0.2","pg":"^8.13.1","socket.io":"^4.8.1"},"description":"Real-time Ludo game server (Socket.IO + Express). VIRTUAL COINS ONLY — no real money, no cash-out, no payments.","engines":{"node":">=20"},"name":"ludo-server","private":true,"scripts":{"start":"node src/index.js"},"version":"1.0.0"}

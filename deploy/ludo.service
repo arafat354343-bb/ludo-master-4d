@@ -1,0 +1,23 @@
+[Unit]
+Description=Ludo Master 3D game server (virtual coins only)
+After=network.target postgresql.service
+Wants=postgresql.service
+
+[Service]
+Type=simple
+User=ludo
+Group=ludo
+WorkingDirectory=/opt/ludo/server
+EnvironmentFile=/opt/ludo/server/.env
+ExecStart=/usr/bin/node src/index.js
+Restart=always
+RestartSec=5
+StandardOutput=journal
+StandardError=journal
+
+# Security hardening
+NoNewPrivileges=true
+PrivateTmp=true
+
+[Install]
+WantedBy=multi-user.target
